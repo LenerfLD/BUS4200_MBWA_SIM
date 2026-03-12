@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Servant's Shift: MBWA Simulator</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Tailwind Configuration -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            yellow: '#FFE600',
+                            yellowLight: '#FFF56D',
+                            black: '#000000',
+                            white: '#FFFFFF',
+                        },
+                        accent: {
+                            blue: '#0094FF',
+                            purple: '#7E2EEF',
+                            pink: '#FF2D7A',
+                            green: '#8DDE00',
+                        }
+                    },
+                    backgroundImage: {
+                        'gradient-yellow': 'linear-gradient(135deg, #FFF56D 0%, #FEEB00 100%)',
+                    },
+                    boxShadow: {
+                        'card': '0 10px 40px -10px rgba(0,0,0,0.08)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Styles & Animations */
+        body {
+            background-color: #FAFAFA;
+            color: #000000;
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .highlight-yellow {
+            background-color: #FFE600;
+            padding: 0.1em 0.3em;
+            border-radius: 4px;
+            font-weight: 700;
+        }
+
+        .progress-bar-transition {
+            transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Minimal line-art icon styling */
+        .icon-minimal {
+            fill: none;
+            stroke: #000000;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .icon-accent-fill {
+            fill: #FFE600;
+            stroke: none;
+        }
+    </style>
+</head>
+<body class="font-sans min-h-screen flex flex-col">
+
+    <!-- The Servant Character HUD (Hidden initially) -->
+    <header id="hud" class="hidden fixed top-0 w-full z-50 bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-sm transition-all duration-300">
+        <div class="max-w-5xl mx-auto px-6 py-4">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-3">
+                <div class="flex items-center gap-3">
+                    <svg width="28" height="28" viewBox="0 0 24 24" class="icon-minimal">
+                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" class="icon-accent-fill"/>
+                    </svg>
+                    <h2 class="text-xl font-bold tracking-tight">Servant <span class="text-gray-400 font-medium">HUD</span></h2>
+                </div>
+                
+                <!-- Primary Metric: Growth of People -->
+                <div class="flex items-center gap-3 w-full md:w-64 bg-gray-50 p-2 rounded-lg border border-gray-200">
+                    <span class="text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Growth of People</span>
+                    <div class="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+                        <div id="bar-growth" class="h-full bg-accent-green progress-bar-transition" style="width: 20%"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-3 gap-4 w-full">
+                <!-- Listening -->
+                <div class="flex flex-col gap-1">
+                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Listening</span>
+                    <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div id="bar-listening" class="h-full bg-accent-blue progress-bar-transition" style="width: 20%"></div>
+                    </div>
+                </div>
+                <!-- Empathy -->
+                <div class="flex flex-col gap-1">
+                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Empathy</span>
+                    <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div id="bar-empathy" class="h-full bg-accent-pink progress-bar-transition" style="width: 20%"></div>
+                    </div>
+                </div>
+                <!-- Stewardship -->
+                <div class="flex flex-col gap-1">
+                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Stewardship</span>
+                    <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div id="bar-stewardship" class="h-full bg-accent-purple progress-bar-transition" style="width: 20%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow flex items-center justify-center p-6 pt-40 sm:pt-48 pb-20">
+        <div id="app-container" class="w-full max-w-3xl">
+            <!-- Content gets injected here by JS -->
+        </div>
+    </main>
+
+    <script>
+        // --- State Management ---
+        const state = {
+            step: 'intro',
+            listening: 20,
+            empathy: 20,
+            stewardship: 20,
+            growth: 20, // Primary success metric
+            history: []
+        };
+
+        // --- Content Database ---
+        const content = {
+            intro: {
+                title: "Servant's Shift Simulator",
+                subtitle: "Section 4: Servant Leadership",
+                body: `Welcome to your shift. You are the leader of a high-pressure team.\n\nYour primary goal today is not merely to get the work done, but to ensure the <span class="highlight-yellow">Growth of your People</span>.\n\nYou will face operational crises and interpersonal moments. Will you act as a traditional boss, or will you serve first?`,
+                button: "Begin Your Shift"
+            },
+            scenarios: [
+                {
+                    id: 1,
+                    title: "Phase 1: The Menial Challenge",
+                    context: "A crisis occurs: the team is severely short-handed and a transport vehicle urgently needs to be cleaned to save a client's schedule. The manual labor is grueling.",
+                    choices: [
+                        {
+                            label: "Delegate the Task",
+                            desc: "Assign the cleaning task to an already overworked junior staffer. Your time is too valuable for menial labor.",
+                            effects: { stewardship: -10, growth: -10, empathy: 0, listening: 0 },
+                            feedbackTitle: "A Missed Opportunity",
+                            feedbackText: "You prioritized your own status over the team's well-being. By delegating a terrible task to an exhausted worker, your Stewardship drops, and trust is damaged.",
+                            quote: "Traditional leaders say 'Go.' Servant leaders say 'Let's go.'"
+                        },
+                        {
+                            label: "Do It Yourself (The Empire State CEO)",
+                            desc: "Roll up your sleeves and clean the vehicle yourself, protecting your team from the extra burden.",
+                            effects: { stewardship: 40, growth: 30, empathy: 10, listening: 0 },
+                            feedbackTitle: "Leading by Serving",
+                            feedbackText: "Like the legendary CEOs who worked the front lines, you took the menial task upon yourself. Your Stewardship and Team Trust skyrocket. Your team sees that no job is beneath you.",
+                            quote: "The servant-leader is servant first... It begins with the natural feeling that one wants to serve."
+                        }
+                    ]
+                },
+                {
+                    id: 2,
+                    title: "Phase 2: Management By Wandering Around (MBWA)",
+                    context: "The immediate crisis is over. You decide to take an 'MBWA Walk' to connect with your team on the floor. You notice an employee looking deeply upset at their desk.",
+                    choices: [
+                        {
+                            label: "Redirect to Work",
+                            desc: "Sympathize briefly, but remind them of the urgent deadlines today to keep productivity high.",
+                            effects: { empathy: -10, growth: -10, stewardship: 0, listening: 0 },
+                            feedbackTitle: "Task Over Person",
+                            feedbackText: "You treated them as a worker first, not a person. You missed a chance to heal and support them.",
+                            quote: "People do not care how much you know until they know how much you care."
+                        },
+                        {
+                            label: "Recognize Their Unique Spirit",
+                            desc: "Stop completely. Ask them what is wrong, listen to their personal issue, and offer them the afternoon off to recover.",
+                            effects: { empathy: 40, growth: 20, stewardship: 10, listening: 20 },
+                            feedbackTitle: "Healing and Empathy",
+                            feedbackText: "You recognized their unique spirit. By showing profound Empathy and prioritizing their healing over a daily deadline, you forged an unbreakable bond of loyalty.",
+                            quote: "The servant leader strives to understand and empathize with others. People need to be accepted and recognized for their special and unique spirits."
+                        }
+                    ]
+                },
+                {
+                    id: 3,
+                    title: "Phase 2: The Group Debate",
+                    context: "Continuing your walk, you find a team arguing passionately over how to handle a new scheduling process. They turn to you for the final answer.",
+                    choices: [
+                        {
+                            label: "Announce a Top-Down Decision",
+                            desc: "Listen for a minute, then announce the most efficient decision yourself to end the debate.",
+                            effects: { listening: -10, growth: -10, stewardship: 0, empathy: 0 },
+                            feedbackTitle: "The Will of the Boss",
+                            feedbackText: "You solved the problem, but you silenced the team. A servant leader doesn't just dictate answers; they guide the group to find their own.",
+                            quote: "Traditional leadership relies on the accumulation and exercise of power by one at the 'top of the pyramid.'"
+                        },
+                        {
+                            label: "Identify the Will of the Group",
+                            desc: "Facilitate the conversation. Listen deeply to what is being said (and not said) to help them reach a consensus.",
+                            effects: { listening: 40, growth: 20, stewardship: 0, empathy: 10 },
+                            feedbackTitle: "Deep Listening",
+                            feedbackText: "You used deep Listening to identify the will of the group. By empowering them to solve the problem, you contributed directly to their professional growth.",
+                            quote: "The servant leader seeks to identify the will of a group and helps to clarify that will."
+                        }
+                    ]
+                },
+                {
+                    id: 4,
+                    title: "Phase 2: The Crazy Idea",
+                    context: "Near the end of your shift, a junior employee nervously approaches you with a 'crazy idea' to fix a massive bottleneck in the workflow.",
+                    choices: [
+                        {
+                            label: "Stick to the Rules",
+                            desc: "Thank them, but explain that the current rules are there for a reason and shouldn't be changed right now.",
+                            effects: { growth: -10, stewardship: -10, listening: 0, empathy: 0 },
+                            feedbackTitle: "Development Stifled",
+                            feedbackText: "You protected the status quo, but you crushed their initiative. They are unlikely to offer ideas again.",
+                            quote: "A leader's job is not to do the work for others, it's to help others figure out how to do it themselves."
+                        },
+                        {
+                            label: "Support and Develop",
+                            desc: "Commit to the developmental nature of your role. Give them the resources to test their idea, even if it might fail.",
+                            effects: { growth: 40, stewardship: 20, listening: 10, empathy: 0 },
+                            feedbackTitle: "Commitment to Growth",
+                            feedbackText: "You showed a profound commitment to the growth of people. By trusting them with responsibility, you are building the next generation of leaders.",
+                            quote: "The servant leader is deeply committed to the growth of each and every individual within his or her institution."
+                        }
+                    ]
+                }
+            ],
+            results: {
+                success: {
+                    title: "A High-Performance Family",
+                    color: "text-brand-black",
+                    body: `Shift Complete. You have successfully acted as an <span class="highlight-yellow">Employee Magnet</span>.\n\nBy putting your team's needs first—through listening, empathy, and stewardship—you have contributed massively to the <strong>Growth of your People</strong>.\n\nYou did not just manage tasks; you created a "healing," high-performance family environment where loyalty and trust are the ultimate competitive advantages.`
+                },
+                failure: {
+                    title: "A Traditional Boss",
+                    color: "text-gray-600",
+                    body: `Shift Complete. You managed the daily tasks, but you missed the core of Servant Leadership.\n\nBy putting productivity or your own status above the needs of the team, the <strong>Growth of your People</strong> stagnated.\n\nWhile the work got done today, your team feels like replaceable parts rather than unique spirits. You are a boss, but not yet an Employee Magnet.`
+                }
+            }
+        };
+
+        // --- DOM Elements ---
+        const appContainer = document.getElementById('app-container');
+        const hud = document.getElementById('hud');
+        
+        // --- Render Functions ---
+        
+        function updateHUD() {
+            const clamp = (val) => Math.min(Math.max(val, 0), 100);
+            
+            document.getElementById('bar-growth').style.width = `${clamp(state.growth)}%`;
+            document.getElementById('bar-listening').style.width = `${clamp(state.listening)}%`;
+            document.getElementById('bar-empathy').style.width = `${clamp(state.empathy)}%`;
+            document.getElementById('bar-stewardship').style.width = `${clamp(state.stewardship)}%`;
+        }
+
+        function renderIntro() {
+            hud.classList.add('hidden');
+            appContainer.innerHTML = `
+                <div class="bg-white p-8 sm:p-12 rounded-2xl shadow-card fade-in border border-gray-200 text-center">
+                    <div class="w-16 h-16 bg-brand-yellow rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
+                        <svg width="32" height="32" viewBox="0 0 24 24" class="icon-minimal">
+                            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" class="icon-accent-fill"/>
+                        </svg>
+                    </div>
+                    <p class="text-accent-blue font-bold tracking-wider uppercase text-sm mb-2">${content.intro.subtitle}</p>
+                    <h1 class="text-4xl sm:text-5xl font-extrabold text-brand-black mb-6 leading-tight">${content.intro.title}</h1>
+                    <p class="text-lg text-gray-700 mb-10 leading-relaxed max-w-xl mx-auto whitespace-pre-line">${content.intro.body}</p>
+                    <button onclick="startGame()" class="bg-brand-black text-white hover:bg-gradient-yellow hover:text-black hover:shadow-lg transition-all duration-300 font-bold py-4 px-10 rounded-full text-lg w-full sm:w-auto">
+                        ${content.intro.button}
+                    </button>
+                </div>
+            `;
+        }
+
+        function renderScenario(scenarioIndex) {
+            hud.classList.remove('hidden');
+            updateHUD();
+            
+            const scenario = content.scenarios[scenarioIndex];
+            
+            appContainer.innerHTML = `
+                <div class="fade-in">
+                    <div class="mb-8">
+                        <span class="inline-block py-1 px-3 rounded-full bg-gray-100 text-gray-800 text-sm font-bold mb-4 border border-gray-200">Event ${scenarioIndex + 1} of 4</span>
+                        <h2 class="text-3xl font-extrabold text-brand-black mb-4">${scenario.title}</h2>
+                        <p class="text-lg text-gray-700 leading-relaxed bg-white p-6 rounded-xl shadow-sm border border-gray-200">${scenario.context}</p>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        ${scenario.choices.map((choice, index) => `
+                            <button onclick="selectChoice(${scenarioIndex}, ${index})" class="w-full text-left bg-white p-6 rounded-xl shadow-sm hover:shadow-md border border-gray-200 hover:border-brand-yellow transition-all duration-200 group">
+                                <div class="flex items-start gap-4">
+                                    <div class="w-10 h-10 shrink-0 rounded-full bg-gray-50 border border-gray-200 group-hover:bg-brand-yellow group-hover:border-brand-yellow flex items-center justify-center font-bold text-gray-500 group-hover:text-black transition-colors">
+                                        ${String.fromCharCode(65 + index)}
+                                    </div>
+                                    <div>
+                                        <h3 class="text-xl font-bold text-brand-black mb-2">${choice.label}</h3>
+                                        <p class="text-gray-600">${choice.desc}</p>
+                                    </div>
+                                </div>
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderFeedback(scenarioIndex, choiceIndex) {
+            const scenario = content.scenarios[scenarioIndex];
+            const choice = scenario.choices[choiceIndex];
+            
+            // In this specific structure, choice 1 (index 1) is always the positive servant leader choice
+            const isServantLeader = choiceIndex === 1; 
+            
+            appContainer.innerHTML = `
+                <div class="bg-white p-8 sm:p-10 rounded-2xl shadow-card fade-in border border-gray-200 text-center">
+                    <div class="w-16 h-16 ${isServantLeader ? 'bg-brand-black' : 'bg-gray-200'} rounded-full flex items-center justify-center mx-auto mb-6 text-white">
+                        <svg width="32" height="32" viewBox="0 0 24 24" class="icon-minimal" style="stroke: ${isServantLeader ? 'white' : 'black'}">
+                            ${isServantLeader ? '<polyline points="20 6 9 17 4 12"></polyline>' : '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>'}
+                        </svg>
+                    </div>
+                    <h2 class="text-3xl font-extrabold text-brand-black mb-4">${choice.feedbackTitle}</h2>
+                    <p class="text-lg text-gray-700 mb-8 leading-relaxed max-w-xl mx-auto">${choice.feedbackText}</p>
+                    
+                    <div class="bg-gray-50 p-6 rounded-xl border-l-4 border-brand-yellow mb-10 text-left">
+                        <p class="italic text-gray-800 font-medium">"${choice.quote}"</p>
+                    </div>
+
+                    <button onclick="nextStep(${scenarioIndex})" class="bg-brand-black text-white hover:bg-brand-yellow hover:text-black transition-all duration-300 font-bold py-4 px-10 rounded-full text-lg w-full sm:w-auto shadow-md">
+                        ${scenarioIndex === 3 ? 'View Shift Report' : 'Continue Shift'}
+                    </button>
+                </div>
+            `;
+        }
+
+        function renderResults() {
+            // Determine result based on primary metric: Growth of People
+            const isSuccess = state.growth >= 80; 
+            
+            const resultData = isSuccess ? content.results.success : content.results.failure;
+
+            appContainer.innerHTML = `
+                <div class="bg-white p-8 sm:p-12 rounded-2xl shadow-card fade-in border border-gray-200 text-center mb-8">
+                    <p class="text-sm font-bold tracking-widest text-gray-400 uppercase mb-2">The "Healing" Result</p>
+                    <h1 class="text-4xl sm:text-5xl font-extrabold ${resultData.color} mb-8 leading-tight">${resultData.title}</h1>
+                    
+                    <div class="flex justify-center mb-8 pb-8 border-b border-gray-100">
+                        <div class="text-center bg-gray-50 px-8 py-4 rounded-xl border border-gray-200">
+                            <p class="text-5xl font-black text-brand-black mb-1">${state.growth}%</p>
+                            <p class="text-xs font-bold text-gray-500 uppercase tracking-wide">Final Growth of People</p>
+                        </div>
+                    </div>
+
+                    <p class="text-lg text-gray-700 mb-10 leading-relaxed max-w-2xl mx-auto whitespace-pre-line">${resultData.body}</p>
+                    
+                    <button onclick="resetGame()" class="bg-white border-2 border-brand-black text-brand-black hover:bg-brand-black hover:text-white transition-all duration-300 font-bold py-3 px-8 rounded-full mb-4">
+                        Restart Shift
+                    </button>
+                </div>
+                
+                <!-- Metacognitive Wrap-up Prompt -->
+                <div class="bg-brand-black text-white p-8 rounded-2xl shadow-card fade-in border border-gray-800 text-left">
+                    <div class="flex items-center gap-3 mb-4">
+                        <svg width="24" height="24" viewBox="0 0 24 24" class="icon-minimal" style="stroke: #FFE600">
+                            <circle cx="12" cy="12" r="10" />
+                            <circle cx="12" cy="12" r="4" class="icon-accent-fill" />
+                        </svg>
+                        <h3 class="text-xl font-bold text-brand-yellow">Metacognitive Wrap-up</h3>
+                    </div>
+                    <p class="text-gray-300 leading-relaxed font-medium text-lg border-l-2 border-brand-yellow pl-4">"Which servant leadership characteristic do you possess most strongly, and which would be the most difficult for you to practice in a high-pressure crisis?"</p>
+                    <p class="text-sm text-gray-500 mt-4 uppercase tracking-wider font-bold">Reflect on this question before moving to the next module.</p>
+                </div>
+            `;
+        }
+
+        // --- Logic Handlers ---
+
+        function startGame() {
+            state.listening = 20;
+            state.empathy = 20;
+            state.stewardship = 20;
+            state.growth = 20;
+            state.history = [];
+            state.step = 'scenario-0';
+            renderScenario(0);
+        }
+
+        function selectChoice(scenarioIndex, choiceIndex) {
+            const choice = content.scenarios[scenarioIndex].choices[choiceIndex];
+            const fx = choice.effects;
+            
+            // Update Stats
+            state.listening += (fx.listening || 0);
+            state.empathy += (fx.empathy || 0);
+            state.stewardship += (fx.stewardship || 0);
+            state.growth += (fx.growth || 0);
+            
+            state.history.push(choiceIndex);
+            
+            // Render Feedback
+            state.step = `feedback-${scenarioIndex}`;
+            renderFeedback(scenarioIndex, choiceIndex);
+            updateHUD();
+        }
+
+        function nextStep(currentScenarioIndex) {
+            const nextIndex = currentScenarioIndex + 1;
+            if (nextIndex < content.scenarios.length) {
+                state.step = `scenario-${nextIndex}`;
+                renderScenario(nextIndex);
+            } else {
+                state.step = 'results';
+                renderResults();
+            }
+        }
+
+        function resetGame() {
+            startGame();
+        }
+
+        // Initialize App
+        renderIntro();
+
+    </script>
+</body>
+</html>
